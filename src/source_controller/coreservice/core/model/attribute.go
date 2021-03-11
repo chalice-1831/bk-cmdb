@@ -68,6 +68,7 @@ func (m *modelAttribute) CreateModelAttributes(ctx core.ContextParams, objID str
 		looked, err := locker.Lock(redisKey, time.Second*35)
 		defer locker.Unlock()
 		if err != nil {
+			fmt.Errorf("%s", err)
 			blog.ErrorJSON("create model error. get create look error. err:%s, input:%s, rid:%s", err.Error(), inputParam, ctx.ReqID)
 			addExceptionFunc(int64(attrIdx), ctx.Error.CCErrorf(common.CCErrCommRedisOPErr), &attr)
 			continue
