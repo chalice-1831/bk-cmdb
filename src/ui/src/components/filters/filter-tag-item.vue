@@ -48,7 +48,7 @@
                     triggerTarget: null,
                     interactive: false,
                     hideOnClick: false,
-                    allowHTML: true
+                    allowHTML: false
                 }
             }
         },
@@ -107,7 +107,7 @@
                     this.tagFormInstance = this.$bkPopover(this.$el, {
                         content: this.tagFormViewModel.$el,
                         theme: 'light',
-                        allowHTML: true,
+                        allowHTML: false,
                         placement: 'bottom',
                         trigger: 'manual',
                         interactive: true,

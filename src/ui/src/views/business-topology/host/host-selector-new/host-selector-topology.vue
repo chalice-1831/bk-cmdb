@@ -238,7 +238,7 @@
                 }
                 this.filter.popover = this.$bkPopover(this.$refs.filterInput.$el, {
                     content: this.$refs.topoSearchResult,
-                    allowHTML: true,
+                    allowHTML: false,
                     delay: 300,
                     trigger: 'manual',
                     boundary: 'window',

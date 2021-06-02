@@ -31,7 +31,7 @@
                             </span>
                             <i class="is-related property-edit icon-cc-edit"
                                 v-bk-tooltips="{
-                                    allowHtml: true,
+                                    allowHtml: false,
                                     content: `#rule-${property.id}`,
                                     placement: 'top',
                                     onShow: () => {

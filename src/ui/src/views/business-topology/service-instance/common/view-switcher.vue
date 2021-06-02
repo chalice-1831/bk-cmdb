@@ -9,7 +9,7 @@
             :class="{ 'is-selected': active === 'process' }"
             v-bk-tooltips="{
                 content: '#tipsContent',
-                allowHtml: true,
+                allowHtml: false,
                 placement: 'bottom-end',
                 disabled: tipsDisabled,
                 showOnInit: !tipsDisabled,

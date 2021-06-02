@@ -173,7 +173,7 @@
                 this.more.instance && this.more.instance.destroy()
                 this.more.instance = this.$bkPopover(event.target, {
                     content: this.$refs.moreMenu,
-                    allowHTML: true,
+                    allowHTML: false,
                     delay: 300,
                     trigger: 'manual',
                     boundary: 'window',

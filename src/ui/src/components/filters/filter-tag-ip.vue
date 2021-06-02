@@ -5,7 +5,7 @@
             content: value.join('<br>'),
             interactive: false,
             hideOnClick: false,
-            allowHTML: true
+            allowHTML: false
         }">
         <label class="tag-name">{{label}}</label>
         <span class="tag-colon">:</span>
@@ -26,7 +26,7 @@
                     triggerTarget: null,
                     interactive: false,
                     hideOnClick: false,
-                    allowHTML: true
+                    allowHTML: false
                 }
             }
         },

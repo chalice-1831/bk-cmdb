@@ -120,7 +120,7 @@
             getTipsInstance () {
                 if (!this.tips) {
                     this.tips = this.$bkPopover(this.$refs.ellipsis, {
-                        allowHTML: true,
+                        allowHTML: false,
                         placement: 'top',
                         arrow: true,
                         theme: 'light',
