@@ -439,11 +439,10 @@ func (option ListHostsWithNoBizParameter) Validate() (string, error) {
 
 // ListBizHostsTopoParameter parameter for listing biz hosts with topology info
 type ListBizHostsTopoParameter struct {
-	SetPropertyFilter    *querybuilder.QueryFilter `json:"set_property_filter"`
-	ModulePropertyFilter *querybuilder.QueryFilter `json:"module_property_filter"`
-	HostPropertyFilter   *querybuilder.QueryFilter `json:"host_property_filter"`
-	Fields               []string                  `json:"fields"`
-	Page                 BasePage                  `json:"page"`
+	MainlinePropertyFilter map[string]*querybuilder.QueryFilter `json:"mainline_property_filter"`
+	HostPropertyFilter     *querybuilder.QueryFilter            `json:"host_property_filter"`
+	Fields                 []string                             `json:"fields"`
+	Page                   BasePage                             `json:"page"`
 }
 
 // Validate validate if the parameter is valid for listing biz hosts with topology info
@@ -465,23 +464,15 @@ func (option ListBizHostsTopoParameter) Validate(errProxy errors.DefaultCCErrorI
 		}
 	}
 
-	if option.SetPropertyFilter != nil {
-		if key, err := option.SetPropertyFilter.Validate(); err != nil {
-			blog.Errorf("valid set property filter failed, err: %v", err)
-			return errProxy.CCErrorf(common.CCErrCommParamsInvalid, fmt.Sprintf("set_property_filter.%s", key))
+	for objID, filter := range option.MainlinePropertyFilter {
+		if key, err := filter.Validate(); err != nil {
+			blog.Errorf("valid %s property filter failed, err: %v", objID, err)
+			return errProxy.CCErrorf(common.CCErrCommParamsInvalid, fmt.Sprintf("mainline_property_filter.%s.%s", objID,
+				key))
 		}
-		if option.SetPropertyFilter.GetDeep() > querybuilder.MaxDeep {
-			return errProxy.CCErrorf(common.CCErrCommXXExceedLimit, "set_property_filter.rules", querybuilder.MaxDeep)
-		}
-	}
-
-	if option.ModulePropertyFilter != nil {
-		if key, err := option.ModulePropertyFilter.Validate(); err != nil {
-			blog.Errorf("valid module property filter failed, err: %v", err)
-			return errProxy.CCErrorf(common.CCErrCommParamsInvalid, fmt.Sprintf("module_property_filter.%s", key))
-		}
-		if option.ModulePropertyFilter.GetDeep() > querybuilder.MaxDeep {
-			return errProxy.CCErrorf(common.CCErrCommXXExceedLimit, "module_property_filter.rules", querybuilder.MaxDeep)
+		if filter.GetDeep() > querybuilder.MaxDeep {
+			return errProxy.CCErrorf(common.CCErrCommXXExceedLimit, "mainline_property_filter.%s.rules", objID,
+				querybuilder.MaxDeep)
 		}
 	}
 
@@ -617,9 +608,10 @@ type HostTopoResult struct {
 	Info  []HostTopo `json:"info"`
 }
 
+// HostTopo host with it's topo
 type HostTopo struct {
-	Host map[string]interface{} `json:"host"`
-	Topo []Topo                 `json:"topo"`
+	Host map[string]interface{}   `json:"host"`
+	Topo []map[string]interface{} `json:"topo"`
 }
 
 type Topo struct {

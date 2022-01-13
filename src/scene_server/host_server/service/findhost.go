@@ -13,7 +13,6 @@
 package service
 
 import (
-	"fmt"
 	"sort"
 	"strconv"
 
@@ -664,210 +663,21 @@ func (s *Service) ListBizHostsTopo(ctx *rest.Contexts) {
 	}
 
 	if err := parameter.Validate(ctx.Kit.CCError); err != nil {
-		blog.ErrorJSON("list biz host topo but input %s is invalid, err: %s, rid: %s", parameter, err, ctx.Kit.Rid)
+		blog.Errorf("list biz host topo but input %v is invalid, err: %v, rid: %s", parameter, err, ctx.Kit.Rid)
 		ctx.RespAutoError(err)
 		return
 	}
 
 	ctx.SetReadPreference(common.SecondaryPreferredMode)
 
-	// if set filter or module filter is set, search them first to get ids to filter hosts
-	filteredSetIDs := make([]int64, 0)
-	setMap := make(map[int64]string)
-	if parameter.SetPropertyFilter != nil {
-		setFilter, key, err := parameter.SetPropertyFilter.ToMgo()
-		if err != nil {
-			blog.ErrorJSON("set filter %s is invalid, err: %s, rid: %s", parameter.SetPropertyFilter, err, ctx.Kit.Rid)
-			ctx.RespAutoError(ctx.Kit.CCError.Errorf(common.CCErrCommParamsInvalid,
-				fmt.Sprintf("set_property_filter.%s", key)))
-			return
-		}
-
-		setMap, filteredSetIDs, err = s.Logic.GetInstIDNameInfo(ctx.Kit, common.BKInnerObjIDSet, setFilter)
-		if err != nil {
-			blog.ErrorJSON("get set by filter(%s) failed, err: %s, rid: %s", parameter.SetPropertyFilter, err,
-				ctx.Kit.Rid)
-			ctx.RespAutoError(err)
-			return
-		}
-
-		if len(filteredSetIDs) == 0 {
-			ctx.RespEntityWithCount(0, make([]meta.HostTopo, 0))
-			return
-		}
-	}
-
-	filteredModuleIDs := make([]int64, 0)
-	moduleMap := make(map[int64]string)
-	if parameter.ModulePropertyFilter != nil {
-		moduleFilter, key, err := parameter.ModulePropertyFilter.ToMgo()
-		if err != nil {
-			blog.ErrorJSON("set filter %s is invalid, err: %s, rid: %s", parameter.ModulePropertyFilter, err,
-				ctx.Kit.Rid)
-			ctx.RespAutoError(ctx.Kit.CCError.Errorf(common.CCErrCommParamsInvalid,
-				fmt.Sprintf("module_property_filter.%s", key)))
-			return
-		}
-
-		moduleMap, filteredModuleIDs, err = s.Logic.GetInstIDNameInfo(ctx.Kit, common.BKInnerObjIDModule, moduleFilter)
-		if err != nil {
-			blog.ErrorJSON("get module by filter(%s) failed, err: %s, rid: %s", parameter.ModulePropertyFilter, err,
-				ctx.Kit.Rid)
-			ctx.RespAutoError(err)
-			return
-		}
-
-		if len(filteredModuleIDs) == 0 {
-			ctx.RespEntityWithCount(0, make([]meta.HostTopo, 0))
-			return
-		}
-	}
-
-	// search all hosts
-	option := &meta.ListHosts{
-		BizID:              bizID,
-		SetIDs:             filteredSetIDs,
-		ModuleIDs:          filteredModuleIDs,
-		HostPropertyFilter: parameter.HostPropertyFilter,
-		Fields:             append(parameter.Fields, common.BKHostIDField),
-		Page:               parameter.Page,
-	}
-	hosts, err := s.CoreAPI.CoreService().Host().ListHosts(ctx.Kit.Ctx, ctx.Kit.Header, option)
+	// related issue:https://github.com/Tencent/bk-cmdb/issues/5891
+	rsp, err := s.Logic.SearchBizHostTopo(ctx.Kit, bizID, parameter)
 	if err != nil {
-		blog.Errorf("find host failed, err: %s, input:%#v, rid: %s", err.Error(), parameter, ctx.Kit.Rid)
-		ctx.RespAutoError(ctx.Kit.CCError.Error(common.CCErrHostGetFail))
-		return
-	}
-
-	if len(hosts.Info) == 0 {
-		ctx.RespEntity(hosts)
-		return
-	}
-
-	// search all hosts' host module relations
-	hostIDs := make([]int64, 0)
-	for _, host := range hosts.Info {
-		hostID, err := util.GetInt64ByInterface(host[common.BKHostIDField])
-		if err != nil {
-			blog.ErrorJSON("host: %s bk_host_id field invalid, rid: %s", host, ctx.Kit.Rid)
-			ctx.RespAutoError(err)
-			return
-		}
-		hostIDs = append(hostIDs, hostID)
-	}
-
-	relationCond := meta.HostModuleRelationRequest{
-		ApplicationID: bizID,
-		HostIDArr:     hostIDs,
-		Fields:        []string{common.BKSetIDField, common.BKModuleIDField, common.BKHostIDField},
-	}
-	relations, err := s.Logic.GetHostRelations(ctx.Kit, relationCond)
-	if nil != err {
-		blog.ErrorJSON("read host module relation error: %s, input: %s, rid: %s", err, hosts, ctx.Kit.Rid)
+		blog.Errorf("list biz host topo failed, err: %v, rid: %s", err, ctx.Kit.Rid)
 		ctx.RespAutoError(err)
 		return
 	}
-
-	// generate host to set and module relation map
-	setIDs := make([]int64, 0)
-	moduleIDs := make([]int64, 0)
-	relation := make(map[int64]map[int64][]int64)
-	for _, r := range relations {
-		setIDs = append(setIDs, r.SetID)
-		moduleIDs = append(moduleIDs, r.ModuleID)
-		if setModule, ok := relation[r.HostID]; ok {
-			setModule[r.SetID] = append(setModule[r.SetID], r.ModuleID)
-			relation[r.HostID] = setModule
-		} else {
-			setModule := make(map[int64][]int64)
-			setModule[r.SetID] = append(setModule[r.SetID], r.ModuleID)
-			relation[r.HostID] = setModule
-		}
-	}
-
-	// search all module and set info that is not already searched before
-	otherSetIDs := make([]int64, 0)
-	if len(filteredSetIDs) == 0 {
-		otherSetIDs = util.IntArrayUnique(setIDs)
-	} else {
-		for _, setID := range setIDs {
-			if _, exists := setMap[setID]; !exists {
-				otherSetIDs = append(otherSetIDs, setID)
-			}
-		}
-	}
-
-	if len(otherSetIDs) > 0 {
-		setIDs = util.IntArrayUnique(setIDs)
-		setFilter := map[string]interface{}{common.BKSetIDField: map[string]interface{}{common.BKDBIN: otherSetIDs}}
-		otherSetMap, _, err := s.Logic.GetInstIDNameInfo(ctx.Kit, common.BKInnerObjIDSet, setFilter)
-		if err != nil {
-			blog.ErrorJSON("get set by filter(%s) failed, err: %s, rid: %s", setFilter, err, ctx.Kit.Rid)
-			ctx.RespAutoError(err)
-			return
-		}
-		for key, value := range otherSetMap {
-			setMap[key] = value
-		}
-	}
-
-	otherModuleIDs := make([]int64, 0)
-	if len(filteredModuleIDs) == 0 {
-		otherModuleIDs = util.IntArrayUnique(moduleIDs)
-	} else {
-		for _, moduleID := range moduleIDs {
-			if _, exists := setMap[moduleID]; !exists {
-				otherModuleIDs = append(otherModuleIDs, moduleID)
-			}
-		}
-	}
-
-	if len(otherModuleIDs) > 0 {
-		moduleFilter := map[string]interface{}{common.BKModuleIDField: map[string]interface{}{common.BKDBIN:
-		otherModuleIDs}}
-		otherModuleMap, _, err := s.Logic.GetInstIDNameInfo(ctx.Kit, common.BKInnerObjIDModule, moduleFilter)
-		if err != nil {
-			blog.ErrorJSON("get module by filter(%s) failed, err: %s, rid: %s", moduleFilter, err, ctx.Kit.Rid)
-			ctx.RespAutoError(err)
-			return
-		}
-		for key, value := range otherModuleMap {
-			moduleMap[key] = value
-		}
-	}
-
-	// format the output
-	hostTopos := meta.HostTopoResult{
-		Count: hosts.Count,
-	}
-	for _, host := range hosts.Info {
-		hostTopo := meta.HostTopo{
-			Host: host,
-		}
-		topos := make([]meta.Topo, 0)
-		hostID, _ := util.GetInt64ByInterface(host[common.BKHostIDField])
-		if setModule, ok := relation[hostID]; ok {
-			for setID, moduleIDs := range setModule {
-				topo := meta.Topo{
-					SetID:   setID,
-					SetName: setMap[setID],
-				}
-				modules := make([]meta.Module, 0)
-				for _, moduleID := range moduleIDs {
-					module := meta.Module{
-						ModuleID:   moduleID,
-						ModuleName: moduleMap[moduleID],
-					}
-					modules = append(modules, module)
-				}
-				topo.Module = modules
-				topos = append(topos, topo)
-			}
-		}
-		hostTopo.Topo = topos
-		hostTopos.Info = append(hostTopos.Info, hostTopo)
-	}
-	ctx.RespEntity(hostTopos)
+	ctx.RespEntity(rsp)
 }
 
 func (s *Service) ListHostDetailAndTopology(ctx *rest.Contexts) {
