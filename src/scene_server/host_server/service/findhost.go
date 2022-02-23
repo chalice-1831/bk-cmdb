@@ -823,8 +823,7 @@ func (s *Service) ListBizHostsTopo(ctx *rest.Contexts) {
 	}
 
 	if len(otherModuleIDs) > 0 {
-		moduleFilter := map[string]interface{}{common.BKModuleIDField: map[string]interface{}{common.BKDBIN:
-		otherModuleIDs}}
+		moduleFilter := map[string]interface{}{common.BKModuleIDField: map[string]interface{}{common.BKDBIN: otherModuleIDs}}
 		otherModuleMap, _, err := s.Logic.GetInstIDNameInfo(ctx.Kit, common.BKInnerObjIDModule, moduleFilter)
 		if err != nil {
 			blog.ErrorJSON("get module by filter(%s) failed, err: %s, rid: %s", moduleFilter, err, ctx.Kit.Rid)
@@ -1024,6 +1023,40 @@ func (s *Service) ListServiceTemplateIDsByHost(ctx *rest.Contexts) {
 	}
 
 	rsp, err := s.Logic.ListServiceTemplateHostIDMap(ctx.Kit, input.ID)
+	if err != nil {
+		ctx.RespAutoError(err)
+		return
+	}
+
+	ctx.RespEntity(rsp)
+}
+
+// ListHostTotalMainlineTopo list host
+func (s *Service) ListHostTotalMainlineTopo(ctx *rest.Contexts) {
+
+	bizID, err := util.GetInt64ByInterface(ctx.Request.PathParameter(common.BKAppIDField))
+	if err != nil {
+		ctx.RespAutoError(ctx.Kit.CCError.Errorf(common.CCErrCommParamsInvalid, common.BKAppIDField))
+		return
+	}
+
+	if bizID == 0 {
+		ctx.RespAutoError(ctx.Kit.CCError.Errorf(common.CCErrCommParamsInvalid, common.BKAppIDField))
+		return
+	}
+	params := meta.FindHostTotalTopo{}
+	if err := ctx.DecodeInto(&params); err != nil {
+		ctx.RespAutoError(err)
+		return
+	}
+
+	if err := params.Validate(ctx.Kit.CCError); err != nil {
+		blog.Errorf("validate param failed, param: %v, err: %v, rid: %s", params, err, ctx.Kit.Rid)
+		ctx.RespAutoError(err)
+		return
+	}
+
+	rsp, err := s.Logic.ListHostTotalMainlineTopo(ctx.Kit, bizID, params)
 	if err != nil {
 		ctx.RespAutoError(err)
 		return

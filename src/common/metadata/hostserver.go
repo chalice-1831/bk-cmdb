@@ -883,3 +883,56 @@ type updateHostProperty struct {
 	HostID     int64                  `json:"bk_host_id"`
 	Properties map[string]interface{} `json:"properties"`
 }
+
+type customTopoFilter struct {
+	ObjectID string                    `json:"bk_obj_id"`
+	Filter   *querybuilder.QueryFilter `json:"filter"`
+}
+
+// FindHostTotalTopo struct to find host total topo
+type FindHostTotalTopo struct {
+	MainlinePropertyFilter []customTopoFilter        `json:"mainline_property_filters"`
+	HostPropertyFilter     *querybuilder.QueryFilter `json:"host_property_filter"`
+	Fields                 []string                  `json:"fields"`
+	Page                   BasePage                  `json:"page"`
+}
+
+func (f *FindHostTotalTopo) Validate(errProxy errors.DefaultCCErrorIf) errors.CCErrorCoder {
+
+	if f.Page.Limit <= 0 {
+		return errProxy.CCErrorf(common.CCErrCommParamsNeedSet, "page.limit")
+	}
+	if f.Page.Limit > common.BKMaxInstanceLimit {
+		return errProxy.CCErrorf(common.CCErrCommXXExceedLimit, "page.limit", common.BKMaxInstanceLimit)
+	}
+
+	for _, objFilter := range f.MainlinePropertyFilter {
+
+		if key, err := objFilter.Filter.Validate(); err != nil {
+			return errProxy.CCErrorf(common.CCErrCommParamsInvalid, fmt.Sprintf("%s of %s", key, objFilter.ObjectID))
+		}
+
+		if objFilter.Filter.GetDeep() > querybuilder.MaxDeep {
+			return errProxy.CCErrorf(common.CCErrCommXXExceedLimit, fmt.Sprintf("filter.rule of %s", objFilter.ObjectID),
+				querybuilder.MaxDeep)
+		}
+	}
+
+	if f.HostPropertyFilter != nil {
+		if key, err := f.HostPropertyFilter.Validate(); err != nil {
+			return errProxy.CCErrorf(common.CCErrCommParamsInvalid, fmt.Sprintf("%s of %s", key, common.BKInnerObjIDHost))
+		}
+
+		if f.HostPropertyFilter.GetDeep() > querybuilder.MaxDeep {
+			return errProxy.CCErrorf(common.CCErrCommXXExceedLimit, fmt.Sprintf("filter.rule of %s",
+				common.BKInnerObjIDHost), querybuilder.MaxDeep)
+		}
+	}
+
+	return nil
+}
+
+type HostMainlineTopoResult struct {
+	Count int                  `json:"count"`
+	Info  []HostDetailWithTopo `json:"info"`
+}
